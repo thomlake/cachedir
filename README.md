@@ -124,4 +124,4 @@ This means even if `cachedir` was to undergo a massive rewrite, accessing items 
 Additionally, `cachedir` only has a single non-standard library dependency, [filelock](https://github.com/benediktschmitt/py-filelock), so it should be easy to use anywhere your code might need to run.
 
 ### Flexible
-Because `cachedir` facilitates easily linking filesystem objects to an item, you are free to choose whatever storage format best suits a partiucalar piece of data (HDF5, JSON, npz, pickle, etc).
+Because `cachedir` facilitates easily linking filesystem objects to an item, you are free to choose whatever storage format best suits a particular piece of data (HDF5, JSON, npz, pickle, etc).
