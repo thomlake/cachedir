@@ -6,68 +6,73 @@ import time
 
 from datetime import datetime
 
-class Entry(object):
-    """An entry in the cache.
 
-    - A set of JSON serializable attributes which can be accessed using dict syntax.
-    - An associated directory whose contents can be accessed using the `Entry.contents` method.
+WILDCARD = any
+def is_wild(x):
+    return x == WILDCARD
+
+
+def matches_structure(a, b):
+    """Test if a is a substructure of b.
+
+    matches_structure(
+        {'a': 1, 'c': {'x': any}},
+        {'a': 1, 'b': 2, 'c': {'x': 'foo', 'y': 'bar'}, 'd': [1, 2, 3]}) => True
+    matches_structure(
+        {'a': 1, 'e': any},
+        {'a': 1, 'b': 2, 'c': {'x': 'foo', 'y': 'bar'}, 'd': [1, 2, 3]}) => False
     """
-    def __init__(self, cache, attrs):
-        self.cache = cache
+    if is_wild(a):
+        return True
+    elif isinstance(a, dict):
+        if not isinstance(b, dict):
+            return False
+        for k, v in a.items():
+            if k in b and matches_structure(v, b[k]):
+                continue
+            else:
+                return False
+        return True
+    else:
+        return a == b
+
+
+class item(object):
+    """An item in the cache.
+    
+    Each `item` has
+    - A set of JSON serializable attributes which can be accessed using dict syntax.
+    - A directory whose contents are associated with the item. 
+    """
+    def __init__(self, attrs):
         self.attrs = attrs
-        self.has_updates = False
 
     def __repr__(self):
-        return 'Entry({}, {:%Y-%m-%d %H:%M:%S})'.format(
-            self.attrs['_id'],
-            datetime.fromtimestamp(self.attrs['_timestamp']))
+        _id = self.attrs['@']
+        _timestamp = datetime.fromtimestamp(self.attrs['$'])
+        return 'cachedir.item(@={}, $={:%Y-%m-%d %H:%M:%S})'.format(_id, _timestamp)
 
-    def __setitem__(self, key, value):
-        if not isinstance(key, basestring):
-            raise ValueError('key must be an instance of basestring (got: {})'.format(type(key)))
-        if key == '_id':
-            raise ValueError('_id may not be overridden')
-
-        self.has_updates = True
-        self.attrs[key] = value
+    def __contains__(self, key):
+        return key in self.attrs
 
     def __getitem__(self, key):
         return self.attrs[key]
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        """Save entry."""
-        self.save()
-
     def get(self, key, default=None):
         return self.attrs.get(key, default)
 
-    def update(self, items):
-        """Add items to the entries attributes."""
-        self.attrs.update(items)
+    def contents(self):
+        """Get the paths to files associated with this item."""
+        root = self.attrs['@']
+        filepaths = []
+        for path, _, filenames in os.walk(root):
+            for fn in filenames:
+                filepaths.append(os.path.join(path, fn))
+        return filepaths
 
-    def save(self):
-        """Save this entry in the cache."""
-        if not self.has_updates:
-            return False
-        self.cache.append(self.attrs)
-        self.has_updates = False
-        return True
-
-    def contents(self, abspath=True):
-        """Get the top level contents associated with this entry."""
-        folder = self.attrs['_id']
-        items = os.listdir(folder)
-        if abspath:
-            return [os.path.join(folder, item) for item in items]
-        return items
-
-    def get_file(self, name):
-        """Get the path to a file associated with this entry with the given name."""
-        filename = os.path.join(self.attrs['_id'], name)
-        return filename
+    def get_path(self, *parts):
+        """Get the path to a filesystem object associated with this item."""
+        return os.path.join(self.attrs['@'], *parts)
 
 
 def _get_create_lock():
@@ -75,8 +80,9 @@ def _get_create_lock():
     return filelock.FileLock(filename)
 
 
-class Cache(object):
+class cache(object):
     """A file system backed cache."""
+
     def __init__(self, loc='./cache'):
         base = os.path.abspath(loc)
         if not os.path.exists(base):
@@ -91,29 +97,41 @@ class Cache(object):
         self.lock = filelock.FileLock(os.path.join(self.base, '_lock'))
         self.filename = os.path.join(self.base, '_entries')
 
-    def __iter__(self):
-        """Return a list of entries in the cache."""
-        if not os.path.exists(self.filename):
-            return iter([])
-        with self.lock:
-            with open(self.filename) as fp:
-                return [Entry(self, json.loads(line)) for line in fp]
+    def add(self, attrs=None, prefix='item_'):
+        """Append an item to the cache.
 
-    def append(self, obj):
-        """Append an object to the entries in the cache.
-
-        obj must be JSON serializable.
+        The argument attrs must be JSON serializable.
+        Adds 2 special keys to attrs:
+        - "@" The location of the item's contents.
+        - "$" The time this item was created (given by time.time())
         """
-        string = json.dumps(obj)
+        attrs = dict(attrs) if attrs else {}
+        _id = tempfile.mkdtemp(prefix=prefix, dir=self.base)
+        _timestamp = time.time()
+        attrs.update({'@': _id, '$': _timestamp})
+        string = json.dumps(attrs)
         with self.lock:
             with open(self.filename, 'a') as fp:
                 fp.write(string)
                 fp.write('\n')
+                fp.flush()
+        return item(attrs)
 
-    def create_entry(self, attrs=None):
-        """Create and return a new entry in the cache."""
-        attrs = dict(attrs) if attrs else {}
-        _id = tempfile.mkdtemp(prefix='e', dir=self.base)
-        _timestamp = time.time()
-        attrs.update({'_id': _id, '_timestamp': _timestamp})
-        return Entry(self, attrs)
+    def items(self, match=None):
+        """Return a list of items in the cache.
+        
+        If match is None all items are returned.
+        If match is callable then all items returned satisfy bool(match(item)) == True.
+        Otherwise all items returned satisfy cachedir.matches_structure(match, item) == True.
+        """
+        if not os.path.exists(self.filename):
+            return []
+        with self.lock:
+            with open(self.filename) as fp:
+                items = [item(json.loads(line)) for line in fp]
+
+        if callable(match):
+            return [x for x in items if match(x)]
+        elif match is not None:
+            return [x for x in items if matches_structure(match, x.attrs)]
+        return items
