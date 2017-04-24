@@ -98,17 +98,17 @@ class cache(object):
         self.filename = os.path.join(self.base, '_entries')
 
     def add(self, attrs=None, prefix='item_'):
-        """Append an item to the cache.
+        """Add an item to the cache.
 
         The argument attrs must be JSON serializable.
-        Adds 2 special keys to attrs:
-        - "@" The location of the item's contents.
-        - "$" The time this item was created (given by time.time())
+        
+        Two special keys are added to attrs if they do not exist:
+        - "@" A new directory for this item's contents.
+        - "$" The time this item was added (given by time.time())
         """
         attrs = dict(attrs) if attrs else {}
-        _id = tempfile.mkdtemp(prefix=prefix, dir=self.base)
-        _timestamp = time.time()
-        attrs.update({'@': _id, '$': _timestamp})
+        attrs['@'] = attrs['@'] if '@' in attrs else tempfile.mkdtemp(prefix=prefix, dir=self.base)
+        attrs['$'] = attrs['$'] if '$' in attrs else time.time()
         string = json.dumps(attrs)
         with self.lock:
             with open(self.filename, 'a') as fp:
