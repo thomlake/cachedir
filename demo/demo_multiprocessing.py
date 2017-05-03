@@ -26,15 +26,15 @@ if __name__ == '__main__':
 
     cache = cachedir.cache(CACHE_LOC)
     print('All items')
-    for i, entry in enumerate(cache.items()):
+    for i, entry in enumerate(cache.find()):
         print(i, '=>', entry)
 
     print('Items with name == "foo"')
-    for i, entry in enumerate(cache.items({'name': 'foo'})):
+    for i, entry in enumerate(cache.find({'name': 'foo'})):
         print(i, '=>', entry)
 
     print('Items with even "iter"')
-    for i, entry in enumerate(cache.items(lambda x: x['iter'] % 2 == 0)):
+    for i, entry in enumerate(cache.find(lambda x: x['iter'] % 2 == 0)):
         print(i, '=>', entry)
 
     shutil.rmtree(CACHE_LOC)

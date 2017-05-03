@@ -117,7 +117,7 @@ class cache(object):
                 fp.flush()
         return item(attrs)
 
-    def items(self, match=None):
+    def find(self, match=None):
         """Return a list of items in the cache.
         
         If match is None all items are returned.
@@ -135,3 +135,25 @@ class cache(object):
         elif match is not None:
             return [x for x in items if matches_structure(match, x.attrs)]
         return items
+
+    def find_one(self, match):
+        """Return an item in the cache.
+        
+        Raises ValueError if result is not a single item.
+        If match is callable then the returned item satisfies bool(match(item)) == True.
+        Otherwise the returned item satisfies cachedir.matches_structure(match, item) == True.
+        """
+        if not os.path.exists(self.filename):
+            raise ValueError('cache is empty')
+        with self.lock:
+            with open(self.filename) as fp:
+                items = [item(json.loads(line)) for line in fp]
+
+        if callable(match):
+            items = [x for x in items if match(x)]
+        elif match is not None:
+            items = [x for x in items if matches_structure(match, x.attrs)]
+        
+        if len(items) != 1:
+            raise ValueError('expected one matched item, found: {}'.format(len(items)))
+        return items[0]

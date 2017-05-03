@@ -1,5 +1,7 @@
 from __future__ import print_function
+import os
 import shutil
+import tempfile
 
 import cachedir
 
@@ -20,7 +22,7 @@ with open(item1.get_path('words.txt'), 'w') as fp:
 
 # Iterate over items in the cache.
 print('Items')
-for i, item in enumerate(cache.items()):
+for i, item in enumerate(cache.find()):
     print(i, '=>', item)
     print('  name:', item['name'])
     print('  value:', item['value'])
@@ -28,7 +30,7 @@ for i, item in enumerate(cache.items()):
 
 # Iterate over items in the cache with name == "foo".
 print('\nItems with name == "foo"')
-for i, item in enumerate(cache.items({'name': 'foo'})):
+for i, item in enumerate(cache.find({'name': 'foo'})):
     print(i, '=>', item)
     print('  name:', item['name'])
     print('  value:', item['value'])
@@ -36,7 +38,7 @@ for i, item in enumerate(cache.items({'name': 'foo'})):
 
 # Iterate over items in the cache with value == 1.
 print('\nItems with name == "foo"')
-for i, item in enumerate(cache.items({'value': 1})):
+for i, item in enumerate(cache.find({'value': 1})):
     print(i, '=>', item)
     print('  name:', item['name'])
     print('  value:', item['value'])

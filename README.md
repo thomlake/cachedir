@@ -48,7 +48,7 @@ with open(item1.get_path('words.txt'), 'w') as fp:
     fp.write('\n'.join(['some', 'text', 'in', 'a', 'file']))
 
 # Iterate over items in the cache.
-for i, item in enumerate(cache.items()):
+for i, item in enumerate(cache.find()):
     print(i, '=>', item)
     print('  name:', item['name'])
     print('  value:', item['value'])
@@ -57,7 +57,7 @@ for i, item in enumerate(cache.items()):
 # 0 => cachedir.item(@=/tmp/cache/item_u2Qoh7, $=2017-04-23 10:45:49)
 #   name: foo
 #   value: 1
-#   contents: [u'/tmp/cache/eu2Qoh7/words.txt']
+#   contents: [u'/tmp/cache/item_u2Qoh7/words.txt']
 # 1 => cachedir.item(@=/tmp/cache/item_fimKg9, $=2017-04-23 10:45:49)
 #   name: foo
 #   value: [2, 3, 4]
@@ -68,7 +68,7 @@ for i, item in enumerate(cache.items()):
 #   contents: []
 
 # Iterate over items in the cache with name == "foo".
-for i, item in enumerate(cache.items({'name': 'foo'})):
+for i, item in enumerate(cache.find({'name': 'foo'})):
     print(i, '=>', item)
     print('  name:', item['name'])
     print('  value:', item['value'])
@@ -84,7 +84,7 @@ for i, item in enumerate(cache.items({'name': 'foo'})):
 #   contents: []
 
 # Iterate over items in the cache with value == 1.
-for i, item in enumerate(cache.items({'value': 1})):
+for i, item in enumerate(cache.find({'value': 1})):
     print(i, '=>', item)
     print('  name:', item['name'])
     print('  value:', item['value'])
