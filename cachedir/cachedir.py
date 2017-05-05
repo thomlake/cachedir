@@ -44,7 +44,8 @@ class item(object):
     - A set of JSON serializable attributes which can be accessed using dict syntax.
     - A directory whose contents are associated with the item. 
     """
-    def __init__(self, attrs):
+    def __init__(self, base, attrs):
+        self.base = base
         self.attrs = attrs
 
     def __repr__(self):
@@ -63,7 +64,7 @@ class item(object):
 
     def contents(self):
         """Get the paths to files associated with this item."""
-        root = self.attrs['@']
+        root = os.path.join(self.base, self.attrs['@'])
         filepaths = []
         for path, _, filenames in os.walk(root):
             for fn in filenames:
@@ -72,7 +73,7 @@ class item(object):
 
     def get_path(self, *parts):
         """Get the path to a filesystem object associated with this item."""
-        return os.path.join(self.attrs['@'], *parts)
+        return os.path.join(self.base, self.attrs['@'], *parts)
 
 
 def _get_create_lock():
@@ -107,7 +108,7 @@ class cache(object):
         - "$" The time this item was added (given by time.time())
         """
         attrs = dict(attrs) if attrs else {}
-        attrs['@'] = attrs['@'] if '@' in attrs else tempfile.mkdtemp(prefix=prefix, dir=self.base)
+        attrs['@'] = attrs['@'] if '@' in attrs else os.path.split(tempfile.mkdtemp(prefix=prefix, dir=self.base))[1]
         attrs['$'] = attrs['$'] if '$' in attrs else time.time()
         string = json.dumps(attrs)
         with self.lock:
@@ -115,8 +116,16 @@ class cache(object):
                 fp.write(string)
                 fp.write('\n')
                 fp.flush()
-        return item(attrs)
+        return item(self.base, attrs)
 
+    def items(self):
+        """Return all items in the cache."""
+        if not os.path.exists(self.filename):
+            return []
+        with self.lock:
+            with open(self.filename) as fp:
+                return [item(self.base, json.loads(line)) for line in fp]
+    
     def find(self, match=None):
         """Return a list of items in the cache.
         
@@ -124,12 +133,7 @@ class cache(object):
         If match is callable then all items returned satisfy bool(match(item)) == True.
         Otherwise all items returned satisfy cachedir.matches_structure(match, item) == True.
         """
-        if not os.path.exists(self.filename):
-            return []
-        with self.lock:
-            with open(self.filename) as fp:
-                items = [item(json.loads(line)) for line in fp]
-
+        items = self.items()
         if callable(match):
             return [x for x in items if match(x)]
         elif match is not None:
@@ -143,17 +147,11 @@ class cache(object):
         If match is callable then the returned item satisfies bool(match(item)) == True.
         Otherwise the returned item satisfies cachedir.matches_structure(match, item) == True.
         """
-        if not os.path.exists(self.filename):
-            raise ValueError('cache is empty')
-        with self.lock:
-            with open(self.filename) as fp:
-                items = [item(json.loads(line)) for line in fp]
-
+        items = self.items()
         if callable(match):
             items = [x for x in items if match(x)]
         elif match is not None:
             items = [x for x in items if matches_structure(match, x.attrs)]
-        
         if len(items) != 1:
             raise ValueError('expected one matched item, found: {}'.format(len(items)))
         return items[0]
